@@ -1,5 +1,4 @@
 using BepInEx;
-using RayMenu.Console;
 using RayMenu.Core;
 using RayMenu.Game;
 using RayMenu.Mods;
@@ -17,7 +16,6 @@ namespace RayMenu
         private void Awake()
         {
             MenuConfig.Load();
-            ConsoleClient.Instance.Initialize();
 
             var game = new GameBridge(Logger);
             var mods = new ModManager(game);

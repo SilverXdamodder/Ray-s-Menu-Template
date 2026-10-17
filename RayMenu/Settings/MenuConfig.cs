@@ -20,11 +20,6 @@ namespace RayMenu.Settings
         public static KeyCode DefaultPcKey = KeyCode.Q;
         public static int CornerRadius = 8;
         public static bool EnableCreditsPage = true;
-        public static bool EnableAssetsPage = true;
-        public static string BundlesFolder = string.Empty;
-        public static bool EnableConsole = true;
-        public static string ServerDataUrl = "https://silverxserverdata.rf.gd/?i=1";
-        public static string LocalPlayFabId = string.Empty;
 
         public static string Directory => Path.Combine(Paths.ConfigPath, "RayMenu");
         public static string FilePath => Path.Combine(Directory, "settings.ini");
@@ -94,21 +89,6 @@ namespace RayMenu.Settings
                 case "enablecreditspage":
                     if (bool.TryParse(value, out bool credits)) EnableCreditsPage = credits;
                     break;
-                case "enableassetspage":
-                    if (bool.TryParse(value, out bool assets)) EnableAssetsPage = assets;
-                    break;
-                case "bundlesfolder":
-                    BundlesFolder = value;
-                    break;
-                case "enableconsole":
-                    if (bool.TryParse(value, out bool console)) EnableConsole = console;
-                    break;
-                case "serverdataurl":
-                    ServerDataUrl = value;
-                    break;
-                case "localplayfabid":
-                    LocalPlayFabId = value;
-                    break;
             }
         }
 
@@ -141,11 +121,6 @@ namespace RayMenu.Settings
             builder.AppendLine("DefaultPcKey = " + DefaultPcKey);
             builder.AppendLine("CornerRadius = " + CornerRadius);
             builder.AppendLine("EnableCreditsPage = " + (EnableCreditsPage ? "true" : "false"));
-            builder.AppendLine("EnableAssetsPage = " + (EnableAssetsPage ? "true" : "false"));
-            builder.AppendLine("BundlesFolder = " + BundlesFolder);
-            builder.AppendLine("EnableConsole = " + (EnableConsole ? "true" : "false"));
-            builder.AppendLine("ServerDataUrl = " + ServerDataUrl);
-            builder.AppendLine("LocalPlayFabId = " + LocalPlayFabId);
             return builder.ToString();
         }
     }

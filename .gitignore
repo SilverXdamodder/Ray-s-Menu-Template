@@ -5,6 +5,5 @@ libs/
 *.user
 *.suo
 
-# Local asset bundles: keep them out of the repository
-RayMenu/Assets/Bundles/*
-!RayMenu/Assets/Bundles/.gitkeep
+# Local clone of this repository's remote (kept out of the source tree)
+RayMenu/Ray's Menu Template/

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using RayMenu.Assets;
-using RayMenu.Console;
 using RayMenu.Game;
 using RayMenu.Mods;
 using RayMenu.Settings;
@@ -21,12 +19,8 @@ namespace RayMenu.Core
         private readonly ModManager _mods;
         private readonly GameBridge _game;
         private readonly List<MenuPage> _pages = new List<MenuPage>();
-        private readonly List<MenuPage> _visible = new List<MenuPage>();
-        private ConsoleRole _lastRole = ConsoleRole.None;
         private int _pageIndex;
         private int _themePage;
-        private int _calAxis;
-        private int _calMode;
 
         private GUIStyle _window;
         private GUIStyle _panel;
@@ -64,36 +58,6 @@ namespace RayMenu.Core
             _pages.Add(new MenuPage("Settings", BuildSettings));
             _pages.Add(new MenuPage("Themes", BuildThemes));
             if (MenuConfig.EnableCreditsPage) _pages.Add(new MenuPage("Credits", BuildCredits));
-            if (MenuConfig.EnableAssetsPage)
-            {
-                BundleLibrary.Refresh();
-                BundleCalibration.Load();
-                _pages.Add(new MenuPage("Assets", BuildAssets));
-                _pages.Add(new MenuPage("Calibrate", BuildCalibrate));
-                _pages.Add(new MenuPage("Bundle Data", BuildBundleData));
-            }
-
-            if (MenuConfig.EnableConsole)
-            {
-                _pages.Add(new MenuPage("Console Admin", BuildConsoleAdmin, ConsoleRole.Admin));
-                _pages.Add(new MenuPage("Console Super", BuildConsoleSuperAdmin, ConsoleRole.SuperAdmin));
-            }
-
-            RebuildVisiblePages();
-        }
-
-        private void RebuildVisiblePages()
-        {
-            ConsoleRole role = ConsoleClient.Instance.LocalRole;
-            _lastRole = role;
-
-            _visible.Clear();
-            for (int i = 0; i < _pages.Count; i++)
-            {
-                if (role >= _pages[i].RequiredRole) _visible.Add(_pages[i]);
-            }
-
-            if (_pageIndex >= _visible.Count) _pageIndex = Mathf.Max(0, _visible.Count - 1);
         }
 
         private void SyncPresets()
@@ -104,8 +68,6 @@ namespace RayMenu.Core
 
         public void Update()
         {
-            if (ConsoleClient.Instance.LocalRole != _lastRole) RebuildVisiblePages();
-
             bool pcHeld = !GameBridge.IsVrPresent && Input.GetKey(Settings.PcKey);
             bool vrHeld = _game.VrMenuButtonHeld();
 
@@ -117,9 +79,8 @@ namespace RayMenu.Core
         {
             if (!Visible) return;
             EnsureStyles();
-            if (_visible.Count == 0) return;
 
-            var buttons = _visible[_pageIndex].Build();
+            var buttons = _pages[_pageIndex].Build();
             if (buttons.Count > ButtonsPerPage) buttons = buttons.GetRange(0, ButtonsPerPage);
 
             var previousMatrix = GUI.matrix;
@@ -139,7 +100,7 @@ namespace RayMenu.Core
                 GUI.Box(new Rect(118f, 12f, 430f, 482f), "", _panel);
 
                 ShadowLabel(new Rect(118f, 22f, 430f, 52f), MenuConfig.Title + " [" + (_pageIndex + 1) + "]", _title);
-                GUI.Label(new Rect(118f, 74f, 430f, 24f), SubtitleText(), _subtitle);
+                GUI.Label(new Rect(118f, 74f, 430f, 24f), MenuConfig.Subtitle, _subtitle);
 
                 float buttonY = 106f;
                 const float buttonH = 42f;
@@ -172,14 +133,14 @@ namespace RayMenu.Core
             const float gap = 6f;
             const float top = 26f;
             float available = 482f - top - 26f;
-            int count = _visible.Count;
+            int count = _pages.Count;
             float height = Mathf.Min(44f, (available - gap * (count - 1)) / count);
 
             float y = top;
             for (int i = 0; i < count; i++)
             {
                 var rect = new Rect(566f, y, 132f, height);
-                if (GUI.Button(rect, _visible[i].Name, i == _pageIndex ? _categoryActive : _category))
+                if (GUI.Button(rect, _pages[i].Name, i == _pageIndex ? _categoryActive : _category))
                 {
                     _pageIndex = i;
                     _themePage = 0;
@@ -210,7 +171,7 @@ namespace RayMenu.Core
 
         private void NextPage()
         {
-            if (_pageIndex >= _visible.Count - 1) return;
+            if (_pageIndex >= _pages.Count - 1) return;
             _pageIndex++;
             _themePage = 0;
             MenuSound.Play();
@@ -218,9 +179,9 @@ namespace RayMenu.Core
 
         private void Goto(string pageName)
         {
-            for (int i = 0; i < _visible.Count; i++)
+            for (int i = 0; i < _pages.Count; i++)
             {
-                if (_visible[i].Name == pageName)
+                if (_pages[i].Name == pageName)
                 {
                     if (_pageIndex != i) MenuSound.Play();
                     _pageIndex = i;
@@ -349,349 +310,6 @@ namespace RayMenu.Core
                 new MenuButton(string.Empty, null, () => false),
                 new MenuButton(string.Empty, null, () => false),
             };
-        }
-
-        private List<MenuButton> BuildConsoleAdmin()
-        {
-            var client = ConsoleClient.Instance;
-            return new List<MenuButton>
-            {
-                new MenuButton(
-                    () => "Admin Tag: " + OnOff(client.ShowAdminTag),
-                    () => client.ShowAdminTag = !client.ShowAdminTag,
-                    () => client.ShowAdminTag),
-                new MenuButton(
-                    () => "Console: " + (client.Connected ? "ONLINE" : "OFFLINE"),
-                    () => ToggleConsole(client),
-                    () => client.Connected),
-                new MenuButton(
-                    () => "Visible To Console: " + OnOff(client.VisibleToConsole),
-                    () => client.VisibleToConsole = !client.VisibleToConsole,
-                    () => client.VisibleToConsole),
-                new MenuButton(
-                    () => "Console Users: " + ConsoleData.Count,
-                    null,
-                    () => false),
-                new MenuButton("Reload Console Data", ReloadConsole, () => false),
-                new MenuButton("Ping Console", () => client.Transport.Send("ping", client.LocalId), () => false),
-                new MenuButton("< Back", () => Goto("Main"), () => false),
-                new MenuButton(string.Empty, null, () => false),
-            };
-        }
-
-        private List<MenuButton> BuildConsoleSuperAdmin()
-        {
-            var client = ConsoleClient.Instance;
-            return new List<MenuButton>
-            {
-                new MenuButton("Role: SuperAdmin", null, () => true),
-                new MenuButton(
-                    () => "Console Users: " + ConsoleData.Count,
-                    null,
-                    () => false),
-                new MenuButton("Reload Console Data", ReloadConsole, () => false),
-                new MenuButton("Refresh From Server", () => ConsoleData.RefreshFromUrl(MenuConfig.ServerDataUrl), () => false),
-                new MenuButton(
-                    () => "Admin Tag: " + OnOff(client.ShowAdminTag),
-                    () => client.ShowAdminTag = !client.ShowAdminTag,
-                    () => client.ShowAdminTag),
-                new MenuButton(
-                    () => "Console: " + (client.Connected ? "ONLINE" : "OFFLINE"),
-                    () => ToggleConsole(client),
-                    () => client.Connected),
-                new MenuButton("< Back", () => Goto("Main"), () => false),
-                new MenuButton(string.Empty, null, () => false),
-            };
-        }
-
-        private static void ToggleConsole(ConsoleClient client)
-        {
-            if (client.Connected)
-            {
-                client.Transport.Disconnect();
-                client.Connected = false;
-            }
-            else
-            {
-                client.Transport.Connect();
-                client.Connected = true;
-            }
-        }
-
-        private void ReloadConsole()
-        {
-            ConsoleData.Load();
-            ConsoleClient.Instance.Reload();
-            RebuildVisiblePages();
-        }
-
-        private static string SubtitleText()
-        {
-            var client = ConsoleClient.Instance;
-            if (!client.ShowAdminTag || !client.IsAdmin) return MenuConfig.Subtitle;
-            return MenuConfig.Subtitle + (client.IsSuperAdmin ? "  |  SUPERADMIN" : "  |  ADMIN");
-        }
-
-        private List<MenuButton> BuildAssets()
-        {
-            return new List<MenuButton>
-            {
-                new MenuButton(
-                    () => "Bundle: " + BundleLibrary.SelectedName,
-                    () => BundleLibrary.CycleSelection(),
-                    () => false),
-                new MenuButton("Spawn Selected", SpawnSelectedBundle, () => false),
-                new MenuButton(
-                    () => "Spawned: " + BundleLibrary.SpawnedCount,
-                    () => BundleLibrary.Clear(),
-                    () => false),
-                new MenuButton("Reload Bundles", () => BundleLibrary.Refresh(), () => false),
-                new MenuButton("Unload All", () => BundleLibrary.UnloadAll(), () => false),
-                new MenuButton("Calibrate  >", () => Goto("Calibrate"), () => false),
-                new MenuButton("Bundle Data  >", () => Goto("Bundle Data"), () => false),
-                new MenuButton("< Back", () => Goto("Main"), () => false),
-            };
-        }
-
-        private List<MenuButton> BuildCalibrate()
-        {
-            return new List<MenuButton>
-            {
-                new MenuButton(
-                    () => "Bundle: " + BundleLibrary.SelectedName,
-                    () => BundleLibrary.CycleSelection(),
-                    () => false),
-                new MenuButton(
-                    () => "Axis: " + AxisName(_calAxis),
-                    () => _calAxis = (_calAxis + 1) % 3,
-                    () => false),
-                new MenuButton(
-                    () => "Mode: " + ModeName(_calMode),
-                    () => _calMode = (_calMode + 1) % 3,
-                    () => false),
-                new MenuButton("Move -", () => NudgeCalibration(-1), () => false),
-                new MenuButton("Move +", () => NudgeCalibration(1), () => false),
-                new MenuButton("Test Spawn", SpawnSelectedBundle, () => false),
-                new MenuButton("Reset Calibration", () => BundleCalibration.Reset(BundleLibrary.SelectedName), () => false),
-                new MenuButton("< Back", () => Goto("Assets"), () => false),
-            };
-        }
-
-        private List<MenuButton> BuildBundleData()
-        {
-            return new List<MenuButton>
-            {
-                new MenuButton(
-                    () => "Bundle: " + BundleLibrary.SelectedName,
-                    () => BundleLibrary.CycleSelection(),
-                    () => false),
-                new MenuButton(
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        return "Spawn Point: " + (data == null ? "-" : SpawnName(data.SpawnMode));
-                    },
-                    CycleSpawnMode,
-                    () => false),
-                new MenuButton("Set Saved Point", SetSavedPoint, () => false),
-                new MenuButton(
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        return "Sound: " + OnOff(data != null && data.PlayAudio);
-                    },
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        if (data == null) return;
-                        data.PlayAudio = !data.PlayAudio;
-                        BundleCalibration.Save();
-                    },
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        return data != null && data.PlayAudio;
-                    }),
-                new MenuButton(
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        return "Effects: " + OnOff(data != null && data.PlayEffects);
-                    },
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        if (data == null) return;
-                        data.PlayEffects = !data.PlayEffects;
-                        BundleCalibration.Save();
-                    },
-                    () =>
-                    {
-                        Calibration data = CurrentCalibration();
-                        return data != null && data.PlayEffects;
-                    }),
-                new MenuButton("Test Spawn", SpawnSelectedBundle, () => false),
-                new MenuButton("Reset Data", () => BundleCalibration.Reset(BundleLibrary.SelectedName), () => false),
-                new MenuButton("< Back", () => Goto("Assets"), () => false),
-            };
-        }
-
-        private static Calibration CurrentCalibration()
-        {
-            string bundle = BundleLibrary.SelectedName;
-            if (string.IsNullOrEmpty(bundle) || bundle == "none") return null;
-            return BundleCalibration.Get(bundle);
-        }
-
-        private static string SpawnName(int mode)
-        {
-            if (mode == 1) return "At Feet";
-            if (mode == 2) return "World Origin";
-            if (mode == 3) return "Saved Point";
-            return "In Front";
-        }
-
-        private void CycleSpawnMode()
-        {
-            Calibration data = CurrentCalibration();
-            if (data == null) return;
-            data.SpawnMode = (data.SpawnMode + 1) % 4;
-            BundleCalibration.Save();
-        }
-
-        private void SetSavedPoint()
-        {
-            Calibration data = CurrentCalibration();
-            if (data == null) return;
-
-            Vector3 position = PlayerPosition();
-            data.SavedX = position.x;
-            data.SavedY = position.y;
-            data.SavedZ = position.z;
-            BundleCalibration.Save();
-        }
-
-        private Vector3 PlayerPosition()
-        {
-            object transform = ReflectionHelper.GetMember(_game.Player, "transform");
-            if (transform == null) return Vector3.zero;
-
-            object position = ReflectionHelper.GetMember(transform, "position");
-            return position is Vector3 p ? p : Vector3.zero;
-        }
-
-        private static string AxisName(int axis)
-        {
-            if (axis == 1) return "Y (Up)";
-            if (axis == 2) return "Z (Forward)";
-            return "X (Right)";
-        }
-
-        private static string ModeName(int mode)
-        {
-            if (mode == 1) return "Rotation";
-            if (mode == 2) return "Scale";
-            return "Position";
-        }
-
-        private void NudgeCalibration(int direction)
-        {
-            string bundle = BundleLibrary.SelectedName;
-            if (string.IsNullOrEmpty(bundle) || bundle == "none") return;
-
-            Calibration calibration = BundleCalibration.Get(bundle);
-            float step = _calMode == 1 ? 5f : 0.05f;
-
-            if (_calMode == 0)
-            {
-                if (_calAxis == 0) calibration.PosX += direction * step;
-                else if (_calAxis == 1) calibration.PosY += direction * step;
-                else calibration.PosZ += direction * step;
-            }
-            else if (_calMode == 1)
-            {
-                if (_calAxis == 0) calibration.RotX += direction * step;
-                else if (_calAxis == 1) calibration.RotY += direction * step;
-                else calibration.RotZ += direction * step;
-            }
-            else
-            {
-                calibration.Scale = Mathf.Clamp(calibration.Scale + direction * step, 0.05f, 20f);
-            }
-
-            BundleCalibration.Save();
-        }
-
-        private void SpawnSelectedBundle()
-        {
-            var instance = BundleLibrary.SpawnSelected();
-            if (instance == null) return;
-
-            try
-            {
-                Calibration calibration = BundleCalibration.Get(BundleLibrary.SelectedName);
-
-                Vector3 right, up, forward;
-                Vector3 origin = SpawnOrigin(calibration, out right, out up, out forward);
-
-                instance.transform.position = origin
-                    + right * calibration.PosX
-                    + up * calibration.PosY
-                    + forward * calibration.PosZ;
-
-                instance.transform.eulerAngles = new Vector3(calibration.RotX, calibration.RotY, calibration.RotZ);
-                instance.transform.localScale = new Vector3(calibration.Scale, calibration.Scale, calibration.Scale);
-
-                BundleLibrary.ApplyPlayback(instance, calibration.PlayAudio, calibration.PlayEffects);
-            }
-            catch
-            {
-            }
-        }
-
-        private Vector3 SpawnOrigin(Calibration calibration, out Vector3 right, out Vector3 up, out Vector3 forward)
-        {
-            if (calibration.SpawnMode == 2)
-            {
-                right = Vector3.zero;
-                up = Vector3.up;
-                forward = Vector3.zero;
-                return Vector3.zero;
-            }
-
-            if (calibration.SpawnMode == 3)
-            {
-                right = Vector3.zero;
-                up = Vector3.up;
-                forward = Vector3.zero;
-                return new Vector3(calibration.SavedX, calibration.SavedY, calibration.SavedZ);
-            }
-
-            Vector3 origin = PlayerFrame(out right, out up, out forward);
-            if (calibration.SpawnMode == 1) return origin - up * 1f;
-            return origin;
-        }
-
-        private Vector3 PlayerFrame(out Vector3 right, out Vector3 up, out Vector3 forward)
-        {
-            right = Vector3.zero;
-            up = Vector3.up;
-            forward = Vector3.zero;
-
-            object transform = ReflectionHelper.GetMember(_game.Player, "transform");
-            if (transform == null) return new Vector3(0f, 3f, 0f);
-
-            object position = ReflectionHelper.GetMember(transform, "position");
-            object rightValue = ReflectionHelper.GetMember(transform, "right");
-            object upValue = ReflectionHelper.GetMember(transform, "up");
-            object forwardValue = ReflectionHelper.GetMember(transform, "forward");
-
-            Vector3 pos = position is Vector3 p ? p : Vector3.zero;
-            if (rightValue is Vector3 r) right = r;
-            if (upValue is Vector3 u) up = u;
-            if (forwardValue is Vector3 f) forward = f;
-
-            return pos + forward * 2f + up * 1f;
         }
 
         private static void OpenUrl(string url)
